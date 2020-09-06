@@ -1,29 +1,46 @@
 module Library where
 
+import Crypto.Hash (hashWith, SHA256 (..))
+import Data.ByteString (ByteString)
+import Data.ByteArray.Encoding (convertToBase, Base (Base64))
+import Data.Text.Encoding
+  ( encodeUtf8
+  , decodeUtf8
+  )
+import Chrono.TimeStamp (TimeStamp)
 import Control.Monad (filterM)
 import System.Directory
   ( getDirectoryContents
   )
 import Filesystem
   ( isFile
-  , isDirectory
   , listDirectory
   , readTextFile
   )
-import Filesystem.Path.CurrentOS
-  ( fromText
-  , extension
-  )
+import Filesystem.Path.CurrentOS (extension)
 import qualified Data.Text as T
 
 for :: [a] -> (a -> b) -> [b]
 for l f = map f l
 
-toPath s = fromText $ T.pack s
+hash :: T.Text -> T.Text
+hash t =
+  T.init $ T.tail $ T.pack $
+    show ((convertToBase Base64 $ hashWith SHA256 $ encodeUtf8 t) :: ByteString)
+
+type PromptId = T.Text
 
 data Prompt = Prompt
   { question :: T.Text
   , answer :: T.Text
+  , _id :: PromptId
+  }
+  deriving (Show, Eq)
+
+data Review = Review
+  { promptId :: PromptId
+  , time :: TimeStamp
+  , wasKnown :: Bool
   }
   deriving (Show, Eq)
 
@@ -98,7 +115,13 @@ promptsFromFileContents (file:fileContents) =
               (Nothing, [])
             Just (answer, lines'') ->
               let
-                prompt = Prompt { question = question, answer = answer }
+                _id = hash question
+
+                prompt = Prompt
+                  { question = question
+                  , answer = answer
+                  , _id = _id
+                  }
               in
               (Just prompt, lines'')
 
@@ -108,18 +131,5 @@ collectPromptsFromDirectory dirPath = do
     filter (\p -> extension p == (Just $ T.pack "org")) directoryContents
   fileContents <- sequence $ map readTextFile filePaths
 
-  let prompts = promptsFromFileContents fileContents
+  return $ promptsFromFileContents fileContents
 
-  sequence $ map (putStrLn . show) prompts
-
-  return ()
-
-main :: String -> IO ()
-main notesDirectory = do
-  let dirPath = toPath notesDirectory
-  isDirectory' <- isDirectory dirPath
-
-  if isDirectory' then
-    collectPromptsFromDirectory dirPath
-  else
-    putStrLn $ "Not a valid directory: " ++ notesDirectory

@@ -21,6 +21,10 @@ common build-dependencies
     , system-fileio
     , system-filepath
     , text
+    , chronologique
+    , cryptonite
+    , memory
+    , bytestring
 
 library
   import:
@@ -31,6 +35,7 @@ library
     , Library
   -- other-modules:
   -- build-depends:
+  default-language: Haskell2010
 
 executable org-roam-learning-exe
   import:
