@@ -17,6 +17,7 @@ common build-dependencies
   build-depends:
     , base
     , containers
+    , unordered-containers
     , directory
     , system-fileio
     , system-filepath

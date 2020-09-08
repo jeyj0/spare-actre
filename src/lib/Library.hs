@@ -36,13 +36,6 @@ data OrgPrompt = OrgPrompt
   , orgAnswer :: T.Text
   } deriving (Show, Eq)
 
-data Prompt = Prompt
-  { _id :: PromptId
-  , question :: T.Text
-  , answer :: T.Text
-  , reviews :: [Review]
-  } deriving (Show, Eq)
-
 data Review = Review
   { time :: TimeStamp
   , wasKnown :: Bool
@@ -136,39 +129,4 @@ collectPromptsFromDirectory dirPath = do
   fileContents <- sequence $ map readTextFile filePaths
 
   return $ promptsFromFileContents fileContents
-
-parseDataFile :: T.Text -> ([Prompt], [Review])
-parseDataFile dataFile = parseDataFile' (T.lines dataFile) ([], [])
-
-parseDataFile' :: [T.Text] -> ([Prompt], [Review]) -> ([Prompt], [Review])
-parseDataFile' [] r = r
-parseDataFile' (line:lines) (prompts, reviews) =
-  if T.isPrefixOf (T.pack "p") line then
-    let
-      prompt :: Maybe Prompt
-      prompt = parsePrompt $ T.tail line
-    in
-    case prompt of
-      Nothing ->
-        parseDataFile' lines (prompts, reviews)
-      Just p ->
-        parseDataFile' lines (p:prompts, reviews)
-  else if T.isPrefixOf (T.pack "r") line then
-    let
-      review :: Maybe Review
-      review = parseReview $ T.tail line
-    in
-    case review of
-      Nothing ->
-        parseDataFile' lines (prompts, reviews)
-      Just r ->
-        parseDataFile' lines (prompts, r:reviews)
-  else
-    parseDataFile' lines (prompts, reviews)
-
-parsePrompt :: T.Text -> Maybe Prompt
-parsePrompt = undefined
-
-parseReview :: T.Text -> Maybe Review
-parseReview = undefined
 

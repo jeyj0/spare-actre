@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Main where
 
+import qualified Data.HashMap.Strict as HM
 import Dhall
   ( FromDhall
   , Natural
@@ -50,18 +51,23 @@ main = do
       else
         die $ "Not a valid directory: " ++ path
 
+data Prompt = Prompt
+  { hQuestion :: T.Text
+  , hAnswer :: T.Text
+  , hReviews :: [Lib.Review]
+  } deriving (Show, Eq)
+
 data Data = Data
-  { _prompts :: [Lib.Prompt]
+  { _prompts :: HM.HashMap Lib.PromptId Prompt
   } deriving (Show)
 
 data DhallData = DhallData
-  { prompts :: [DhallPrompt]
+  { prompts :: HM.HashMap String DhallPrompt
   } deriving (Generic, Show)
 instance FromDhall DhallData
 
 data DhallPrompt = DhallPrompt
-  { _id :: String
-  , question :: String
+  { question :: String
   , answer :: String
   , reviews :: [DhallReview]
   } deriving (Generic, Show)
@@ -81,15 +87,18 @@ saveDataFile filePath prompts reviews = do
       die $ "Unexpected error reading file path: " ++ T.unpack p
 
   dhallData <- input auto simplePath
-  print (dhallData :: DhallData)
 
   let _data = convertToData dhallData
   let prompts' = _prompts _data
 
   putStrLn "########## From File:"
-  sequence $ map (putStrLn . show) prompts'
+  sequence $ HM.map (putStrLn . show) prompts'
   putStrLn "########## From Org:"
   sequence $ map (putStrLn . show) prompts
+
+  let newData = mergeFileAndOrgPrompts prompts _data
+  putStrLn "########## newData:"
+  putStrLn $ show newData
 
   return ()
 
@@ -98,43 +107,67 @@ toPath s = fromText $ T.pack s
 convertToData :: DhallData -> Data
 convertToData dhallData =
   let
-    ps :: [Lib.Prompt]
-    ps = Lib.for (prompts dhallData) $ \p ->
-      let
-        rs :: [Lib.Review]
-        rs = Lib.for (reviews p) $ \r ->
-          Lib.Review
-            { Lib.time = read $ time r
-            , Lib.wasKnown = wasKnown r
+    fn
+      :: String
+      -> DhallPrompt
+      -> HM.HashMap Lib.PromptId Prompt
+      -> HM.HashMap Lib.PromptId Prompt
+    fn key p hashMap =
+      HM.insert (T.pack key) prompt hashMap
+      where
+        prompt :: Prompt
+        prompt =
+          let
+            rs :: [Lib.Review]
+            rs = Lib.for (reviews p) $ \r ->
+              Lib.Review
+                { Lib.time = read $ time r
+                , Lib.wasKnown = wasKnown r
+                }
+          in
+          Prompt
+            { hQuestion = T.pack $ question p
+            , hAnswer = T.pack $ answer p
+            , hReviews = rs
             }
-      in
-      Lib.Prompt
-        { Lib._id = T.pack $ _id p
-        , Lib.question = T.pack $ question p
-        , Lib.answer = T.pack $ answer p
-        , Lib.reviews = rs
-        }
+
+    ps :: HM.HashMap Lib.PromptId Prompt
+    ps = HM.foldrWithKey fn HM.empty $ prompts dhallData
   in
   Data { _prompts = ps }
+
+mergeFileAndOrgPrompts :: [Lib.OrgPrompt] -> Data -> Data
+mergeFileAndOrgPrompts orgPrompts data' =
+  undefined
 
 convertToDhallData :: Data -> DhallData
 convertToDhallData data' =
   let
-    ps :: [DhallPrompt]
-    ps = Lib.for (_prompts data') $ \p ->
-      let
-        rs :: [DhallReview]
-        rs = Lib.for (Lib.reviews p) $ \r ->
-          DhallReview
-            { time = show $ Lib.time r
-            , wasKnown = Lib.wasKnown r
+    fn
+      :: Lib.PromptId
+      -> Prompt
+      -> HM.HashMap String DhallPrompt
+      -> HM.HashMap String DhallPrompt
+    fn key prompt hashMap =
+      HM.insert (T.unpack key) dhallPrompt hashMap
+      where
+        dhallPrompt :: DhallPrompt
+        dhallPrompt =
+          let
+            rs :: [DhallReview]
+            rs = Lib.for (hReviews prompt) $ \r ->
+              DhallReview
+                { time = show $ Lib.time r
+                , wasKnown = Lib.wasKnown r
+                }
+          in
+          DhallPrompt
+            { question = T.unpack $ hQuestion prompt
+            , answer = T.unpack $ hAnswer prompt
+            , reviews = rs
             }
-      in
-      DhallPrompt
-        { _id = T.unpack $ Lib._id p
-        , question = T.unpack $ Lib.question p
-        , answer = T.unpack $ Lib.answer p
-        , reviews = rs
-        }
+
+    ps :: HM.HashMap String DhallPrompt
+    ps = HM.foldrWithKey fn HM.empty $ _prompts data'
   in
   DhallData { prompts = ps }
