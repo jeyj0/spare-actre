@@ -55,6 +55,7 @@ data Prompt = Prompt
   { hQuestion :: T.Text
   , hAnswer :: T.Text
   , hReviews :: [Lib.Review]
+  , hActive :: Bool
   } deriving (Show, Eq)
 
 data Data = Data
@@ -129,6 +130,7 @@ convertToData dhallData =
             { hQuestion = T.pack $ question p
             , hAnswer = T.pack $ answer p
             , hReviews = rs
+            , hActive = False
             }
 
     ps :: HM.HashMap Lib.PromptId Prompt
@@ -138,7 +140,45 @@ convertToData dhallData =
 
 mergeFileAndOrgPrompts :: [Lib.OrgPrompt] -> Data -> Data
 mergeFileAndOrgPrompts orgPrompts data' =
-  undefined
+  let
+    foldFn
+      :: HM.HashMap Lib.PromptId Prompt
+      -> Lib.OrgPrompt
+      -> HM.HashMap Lib.PromptId Prompt
+    foldFn promptMap orgPrompt =
+      let
+        orgPromptId = Lib.orgPromptId orgPrompt
+
+        prompt = Prompt
+          { hQuestion = Lib.orgQuestion orgPrompt
+          , hAnswer = Lib.orgAnswer orgPrompt
+          , hReviews = []
+          , hActive = True
+          }
+
+        insertFn :: Prompt -> Prompt -> Prompt
+        insertFn orgPrompt' dhallPrompt = Prompt
+          { hQuestion = hQuestion orgPrompt'
+          , hAnswer = hAnswer orgPrompt'
+          , hReviews = hReviews dhallPrompt
+          , hActive = True
+          }
+      in
+      HM.insertWith insertFn orgPromptId prompt promptMap
+
+    mergedPrompts :: HM.HashMap Lib.PromptId Prompt
+    mergedPrompts = foldl
+      foldFn
+      (HM.map (\prompt ->
+        Prompt
+          { hQuestion = hQuestion prompt
+          , hAnswer = hAnswer prompt
+          , hReviews = hReviews prompt
+          , hActive = False
+          }) $ _prompts data')
+      orgPrompts
+  in
+  Data { _prompts = mergedPrompts }
 
 convertToDhallData :: Data -> DhallData
 convertToDhallData data' =
