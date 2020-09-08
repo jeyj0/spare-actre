@@ -44,7 +44,7 @@ executable org-roam-learning-exe
     , lang-extensions
     , build-dependencies
   main-is: Main.hs
-  -- other-modules:
+  other-modules:
   build-depends:
     , org-roam-learning
   hs-source-dirs:      src/exe

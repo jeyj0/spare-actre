@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Main where
 
+import Data.List (intercalate)
 import qualified Data.HashMap.Strict as HM
 import Dhall
   ( FromDhall
@@ -10,6 +11,7 @@ import Dhall
   , Generic
   )
 import Chrono.TimeStamp
+import System.IO (getLine)
 import System.Exit (die)
 import qualified Library as Lib
 import System.Environment (getArgs)
@@ -45,11 +47,56 @@ main = do
         prompts <- Lib.collectPromptsFromDirectory dirPath
 
         let filePath = dirPath </> (fromText storageFileName)
-        saveDataFile filePath prompts []
 
-        return ()
+        simplePath <- case toText filePath of
+          Right p ->
+            return p
+          Left p ->
+            die $ "Unexpected error reading file path: " ++ T.unpack p
+
+        dhallData <- input auto simplePath
+
+        let _data = convertToData dhallData
+        let prompts' = _prompts _data
+
+        putStrLn "########## From File:"
+        sequence $ HM.map (putStrLn . show) prompts'
+        putStrLn "########## From Org:"
+        sequence $ map (putStrLn . show) prompts
+
+        let newData = mergeFileAndOrgPrompts prompts _data
+        putStrLn "########## newData:"
+        putStrLn $ show newData
+
+        questionLoop filePath newData
       else
         die $ "Not a valid directory: " ++ path
+
+wasKnownLoop :: IO Bool
+wasKnownLoop = do
+  putStrLn "Did you know the answer? [y/n]"
+  userInput <- getLine
+
+  case userInput of
+    "y" -> do
+      putStrLn "Good for you!"
+      return True
+    "n" -> do
+      putStrLn "You'll surely do next time."
+      return False
+    _ -> do
+      putStrLn "Sorry, I didn't understand you."
+      wasKnownLoop
+
+
+-- questionLoop :: FilePath -> Data -> IO ()
+questionLoop dataFilePath state = do
+  wasKnown <- wasKnownLoop
+
+  if wasKnown then
+    questionLoop dataFilePath state
+  else
+    return ()
 
 data Prompt = Prompt
   { hQuestion :: T.Text
@@ -80,26 +127,10 @@ data DhallReview = DhallReview
   } deriving (Generic, Show)
 instance FromDhall DhallReview
 
-saveDataFile filePath prompts reviews = do
-  simplePath <- case toText filePath of
-    Right p ->
-      return p
-    Left p ->
-      die $ "Unexpected error reading file path: " ++ T.unpack p
-
-  dhallData <- input auto simplePath
-
-  let _data = convertToData dhallData
-  let prompts' = _prompts _data
-
-  putStrLn "########## From File:"
-  sequence $ HM.map (putStrLn . show) prompts'
-  putStrLn "########## From Org:"
-  sequence $ map (putStrLn . show) prompts
-
-  let newData = mergeFileAndOrgPrompts prompts _data
-  putStrLn "########## newData:"
-  putStrLn $ show newData
+-- saveDataFile :: FilePath -> Data -> IO ()
+saveDataFile filePath state = do
+  putStrLn "########## fileOutput:"
+  putStrLn $ convertToDhallFileContent $ convertToDhallData state
 
   return ()
 
@@ -211,3 +242,54 @@ convertToDhallData data' =
     ps = HM.foldrWithKey fn HM.empty $ _prompts data'
   in
   DhallData { prompts = ps }
+
+dhallFileContentPrefix :: String
+dhallFileContentPrefix = unlines
+  [ "let Review : Type ="
+    , "{ time : Text"
+    , ", wasKnown : Bool"
+    , "}"
+  , "let Prompt : Type ="
+    , "{ question : Text"
+    , ", answer : Text"
+    , ", reviews : List Review"
+    , "}"
+  , "let MapEntry : Type ="
+    , "{ mapKey : Text"
+    , ", mapValue : Prompt"
+    , "}"
+  , "in"
+  , "{ prompts = ["
+  ]
+
+dhallFileContentSuffix :: String
+dhallFileContentSuffix = "] : List MapEntry}"
+
+convertToDhallFileContent :: DhallData -> String
+convertToDhallFileContent dhallData =
+  dhallFileContentPrefix ++ dhallFileContentMain ++ dhallFileContentSuffix
+  where
+    dataPrompts = prompts dhallData
+
+    dhallFileContentMain :: String
+    dhallFileContentMain = intercalate "," $ HM.foldrWithKey mapWithPrompt [] dataPrompts
+
+    mapWithPrompt :: String -> DhallPrompt -> [String] -> [String]
+    mapWithPrompt key p fileContentPrompts =
+      promptString:fileContentPrompts
+      where
+        promptString :: String
+        promptString =
+          "{ mapKey = \"" ++ key ++ "\"" ++
+          ", mapValue = { question = \"" ++ question p ++ "\"" ++
+            ", answer = \"" ++ answer p ++ "\"" ++
+            ", reviews = [" ++
+              (intercalate "," $ map reviewAsString $ reviews p) ++
+            "] : List Review}}"
+          where
+            reviewAsString :: DhallReview -> String
+            reviewAsString dhallReview =
+              "{ time = \"" ++ time dhallReview ++ "\"" ++
+              ", wasKnown = " ++ (show $ wasKnown dhallReview) ++
+              "}"
+
