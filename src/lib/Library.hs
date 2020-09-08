@@ -30,40 +30,44 @@ hash t =
 
 type PromptId = T.Text
 
+data OrgPrompt = OrgPrompt
+  { orgPromptId :: PromptId
+  , orgQuestion :: T.Text
+  , orgAnswer :: T.Text
+  } deriving (Show, Eq)
+
 data Prompt = Prompt
-  { question :: T.Text
+  { _id :: PromptId
+  , question :: T.Text
   , answer :: T.Text
-  , _id :: PromptId
-  }
-  deriving (Show, Eq)
+  , reviews :: [Review]
+  } deriving (Show, Eq)
 
 data Review = Review
-  { promptId :: PromptId
-  , time :: TimeStamp
+  { time :: TimeStamp
   , wasKnown :: Bool
-  }
-  deriving (Show, Eq)
+  } deriving (Show, Eq)
 
-promptsFromFileContents :: [T.Text] -> [Prompt]
+promptsFromFileContents :: [T.Text] -> [OrgPrompt]
 promptsFromFileContents [] = []
 promptsFromFileContents (file:fileContents) =
   promptsFromFile file ++ promptsFromFileContents fileContents
   where
-    promptsFromFile :: T.Text -> [Prompt]
+    promptsFromFile :: T.Text -> [OrgPrompt]
     promptsFromFile file =
       let
         lines' = T.lines file
       in
         promptsFromLines [] lines'
 
-    promptsFromLines :: [Prompt] -> [T.Text] -> [Prompt]
+    promptsFromLines :: [OrgPrompt] -> [T.Text] -> [OrgPrompt]
     promptsFromLines prompts [] = prompts
     promptsFromLines prompts (line:lines) =
       if T.isPrefixOf (T.pack "#+begin_prompt") (T.toLower line) then
         let
           (prompt, lines') = finishPrompt lines
 
-          prompts' :: [Prompt]
+          prompts' :: [OrgPrompt]
           prompts' = case prompt of
             Nothing ->
               prompts
@@ -74,7 +78,7 @@ promptsFromFileContents (file:fileContents) =
       else
         promptsFromLines prompts lines
 
-    finishPrompt :: [T.Text] -> (Maybe Prompt, [T.Text])
+    finishPrompt :: [T.Text] -> (Maybe OrgPrompt, [T.Text])
     finishPrompt [] = (Nothing, [])
     finishPrompt lines =
       let
@@ -117,10 +121,10 @@ promptsFromFileContents (file:fileContents) =
               let
                 _id = hash question
 
-                prompt = Prompt
-                  { question = question
-                  , answer = answer
-                  , _id = _id
+                prompt = OrgPrompt
+                  { orgPromptId = _id
+                  , orgAnswer = answer
+                  , orgQuestion = question
                   }
               in
               (Just prompt, lines'')
@@ -132,4 +136,39 @@ collectPromptsFromDirectory dirPath = do
   fileContents <- sequence $ map readTextFile filePaths
 
   return $ promptsFromFileContents fileContents
+
+parseDataFile :: T.Text -> ([Prompt], [Review])
+parseDataFile dataFile = parseDataFile' (T.lines dataFile) ([], [])
+
+parseDataFile' :: [T.Text] -> ([Prompt], [Review]) -> ([Prompt], [Review])
+parseDataFile' [] r = r
+parseDataFile' (line:lines) (prompts, reviews) =
+  if T.isPrefixOf (T.pack "p") line then
+    let
+      prompt :: Maybe Prompt
+      prompt = parsePrompt $ T.tail line
+    in
+    case prompt of
+      Nothing ->
+        parseDataFile' lines (prompts, reviews)
+      Just p ->
+        parseDataFile' lines (p:prompts, reviews)
+  else if T.isPrefixOf (T.pack "r") line then
+    let
+      review :: Maybe Review
+      review = parseReview $ T.tail line
+    in
+    case review of
+      Nothing ->
+        parseDataFile' lines (prompts, reviews)
+      Just r ->
+        parseDataFile' lines (prompts, r:reviews)
+  else
+    parseDataFile' lines (prompts, reviews)
+
+parsePrompt :: T.Text -> Maybe Prompt
+parsePrompt = undefined
+
+parseReview :: T.Text -> Maybe Review
+parseReview = undefined
 

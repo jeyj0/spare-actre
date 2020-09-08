@@ -25,6 +25,7 @@ common build-dependencies
     , cryptonite
     , memory
     , bytestring
+    , dhall
 
 library
   import:
