@@ -49,8 +49,6 @@ main = do
         let prompts' = M._prompts _data
 
         let newData = M.mergeFileAndOrgPrompts prompts _data
-        putStrLn "########## newData:"
-        putStrLn $ show newData
 
         M.questionLoop M.intervals filePath newData
       else

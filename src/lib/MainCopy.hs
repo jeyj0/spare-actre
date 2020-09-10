@@ -229,10 +229,15 @@ instance FromDhall DhallReview
 
 -- saveDataFile :: FilePath -> Data -> IO ()
 saveDataFile filePath state = do
-  putStrLn "########## fileOutput:"
-  putStrLn $ convertToDhallFileContent $ convertToDhallData state
+  let futureFileContent = convertToDhallFileContent $ convertToDhallData state
 
-  return ()
+  simplePath <- case toText filePath of
+    Right p ->
+      return p
+    Left p ->
+      die $ "Unexpected error reading file path: " ++ T.unpack p
+
+  writeFile (T.unpack simplePath) futureFileContent
 
 toPath s = fromText $ T.pack s
 
