@@ -1,3 +1,3 @@
-#!/usr/bin/env bash
+#!/usr/bin/env sh
 
-cabal build org-roam-learning-exe && echo "done"
+cabal build spare-ectre-exe && echo "done"

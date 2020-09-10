@@ -1,7 +1,7 @@
 cabal-version: 3.0
 
 name:
-  org-roam-learning
+  spare-actre
 version:
   0.1.0.0
 license-file:
@@ -57,10 +57,10 @@ test-suite library-tests
     , MainCopy
     , Library
   build-depends:
-    , org-roam-learning
+    , spare-actre
   hs-source-dirs: src/lib
 
-executable org-roam-learning-exe
+executable spare-actre-exe
   import:
     , lang-extensions
     , build-dependencies
@@ -68,7 +68,7 @@ executable org-roam-learning-exe
   main-is: Main.hs
   other-modules:
   build-depends:
-    , org-roam-learning
+    , spare-actre
   hs-source-dirs:      src/exe
   default-language:    Haskell2010
 
