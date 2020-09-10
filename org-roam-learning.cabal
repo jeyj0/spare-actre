@@ -28,21 +28,43 @@ common build-dependencies
     , bytestring
     , dhall
 
+common test-dependencies
+  build-depends:
+    , hspec
+    , QuickCheck
+
 library
   import:
     , lang-extensions
     , build-dependencies
+    , test-dependencies
   hs-source-dirs: src/lib
   exposed-modules:
     , Library
+    , MainCopy
   -- other-modules:
   -- build-depends:
   default-language: Haskell2010
+
+test-suite library-tests
+  import:
+    , lang-extensions
+    , build-dependencies
+    , test-dependencies
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+    , MainCopy
+    , Library
+  build-depends:
+    , org-roam-learning
+  hs-source-dirs: src/lib
 
 executable org-roam-learning-exe
   import:
     , lang-extensions
     , build-dependencies
+    , test-dependencies
   main-is: Main.hs
   other-modules:
   build-depends:
