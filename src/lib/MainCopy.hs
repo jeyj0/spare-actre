@@ -18,7 +18,7 @@ import Dhall
   , Generic
   )
 import Chrono.TimeStamp
-import System.IO (getLine, getChar)
+import System.IO (getLine)
 import System.Exit (die)
 import qualified Library as Lib
 import System.Environment (getArgs)
@@ -49,13 +49,13 @@ intervals = map ((*) $ 1000000000 * 60 * 60) $ -- convert from hours to nanoseco
 wasKnownLoop :: IO Bool
 wasKnownLoop = do
   putStrLn "Did you know the answer? [y/n]"
-  userInput <- getChar
+  userInput <- getLine
 
   case userInput of
-    'y' -> do
+    "y" -> do
       putStrLn "Good for you!"
       return True
-    'n' -> do
+    "n" -> do
       putStrLn "You'll surely do next time."
       return False
     _ -> do
@@ -121,10 +121,10 @@ getScheduledTime intervals reviews =
         i:_ ->
           i
 
-schedulePrompts :: [Interval] -> HM.HashMap Lib.PromptId Prompt -> HM.HashMap Lib.PromptId (ScheduledTime, Prompt)
-schedulePrompts intervals promptsMap =
+schedulePrompts :: ([Lib.Review] -> ScheduledTime) -> HM.HashMap Lib.PromptId Prompt -> HM.HashMap Lib.PromptId (ScheduledTime, Prompt)
+schedulePrompts scheduler promptsMap =
   HM.map
-    (\prompt -> (getScheduledTime intervals $ hReviews prompt, prompt))
+    (\prompt -> (scheduler $ hReviews prompt, prompt))
     promptsMap
 
 keepScheduledInPastAndNow
@@ -150,7 +150,7 @@ questionLoop intervals dataFilePath state = do
         state
         & _prompts
         & filterInactivePrompts
-        & schedulePrompts intervals
+        & schedulePrompts (getScheduledTime intervals)
         & keepScheduledInPastAndNow t
         & HM.toList
         & map (\(i, (t, p)) -> (i, t, p))
@@ -178,7 +178,7 @@ questionLoop intervals dataFilePath state = do
     let newPrompts = addReviewToPrompt questionPromptId review $ _prompts state
     let newState = Data newPrompts
 
-    -- TODO save new state to file
+    saveDataFile dataFilePath newState
 
     questionLoop intervals dataFilePath newState
 
